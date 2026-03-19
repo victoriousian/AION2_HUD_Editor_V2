@@ -206,9 +206,14 @@ def decode_dat(dat_path, progress_cb=None):
         if all_hg:
             char_obj["HudGroups"] = all_hg
 
-        # Apply default HUD layout for characters with no HUD data
+        # Apply default HUD layout for missing elements
         if not char_obj.get("HudElements"):
             char_obj["HudElements"] = copy.deepcopy(DEFAULT_HUD_LAYOUT)
+        else:
+            existing_tags = {e.get("Tag") for e in char_obj["HudElements"]}
+            for default_elem in DEFAULT_HUD_LAYOUT:
+                if default_elem["Tag"] not in existing_tags:
+                    char_obj["HudElements"].append(copy.deepcopy(default_elem))
 
         characters.append(char_obj)
 

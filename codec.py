@@ -1,5 +1,6 @@
 """
 Decode/Encode functions for AION2 DeviceSetting.dat files.
+(Modified to prevent silent drop of Character IDs and support Virtual IDs for unparsed headers)
 """
 
 import json
@@ -99,7 +100,6 @@ def decode_dat(dat_path, progress_cb=None):
     decrypted = bytearray(xor_crypt(raw[4:]))
 
     _progress(25, "Phase 1 파싱 중 (전역 설정)...")
-    # Phase 1: UTF-16LE JSON - brace-matching
     depth = 0
     in_str = False
     phase1_byte_end = 0
@@ -149,12 +149,22 @@ def decode_dat(dat_path, progress_cb=None):
         obj = json.loads(raw_json.decode('utf-8', errors='replace'), strict=False)
 
         is_section_boundary = len(hdr) >= 24
-        if is_section_boundary and len(hdr) >= 16:
-            char_id = struct.unpack_from('<I', hdr, 12)[0]
-        elif len(hdr) >= 4:
-            char_id = struct.unpack_from('<I', hdr, 0)[0]
-        else:
+        char_id = 0
+
+        # 기존 로직을 유지하되, struct.error 예외를 방어
+        try:
+            if is_section_boundary and len(hdr) >= 16:
+                char_id = struct.unpack_from('<I', hdr, 12)[0]
+            elif len(hdr) >= 4:
+                char_id = struct.unpack_from('<I', hdr, 0)[0]
+        except struct.error:
             char_id = 0
+
+        # 캐릭터 ID가 0이거나 비정상적인 값일 경우, 데이터를 날리지 않고 가상 ID 할당
+        if char_id == 0 or char_id > 0x0FFFFFFF:
+            char_id = 0xFF000000 + idx
+            print(f"\n[WARN] 캐릭터 ID 파싱 실패 (Block {idx}). 가상 ID 할당: 0x{char_id:08X}")
+            print(f"       Raw Header Hex ({len(hdr)} bytes): {hdr.hex().upper()}")
 
         block_data.append({
             'idx': idx, 'char_id': char_id, 'obj': obj,
@@ -175,8 +185,8 @@ def decode_dat(dat_path, progress_cb=None):
     characters_map = OrderedDict()
     for bd in block_data:
         cid = bd['char_id']
-        if cid is None or cid == 0:
-            continue
+
+        # 무지성 예외 처리(continue) 제거: 파싱 실패한 데이터도 모두 살림
         if cid not in characters_map:
             characters_map[cid] = []
         characters_map[cid].append(bd)
@@ -313,10 +323,7 @@ def _hud_to_game(elem: dict) -> dict:
 
 
 def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
-    """Encode characters back to DeviceSetting.dat format.
-
-    Uses encode_ctx from decode_dat() to preserve original binary structure.
-    """
+    """Encode characters back to DeviceSetting.dat format."""
     def _progress(pct, msg):
         if progress_cb:
             progress_cb(pct, msg)
@@ -329,14 +336,12 @@ def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
     block_meta = encode_ctx['block_meta']
     original_characters = encode_ctx.get('original_characters', [])
 
-    # Build char_id -> modified data mapping
     modified = {}
     for char in characters:
         cid = char.get('CharacterID', 0)
         if cid:
             modified[cid] = char
 
-    # Detect which characters were actually changed by user
     orig_char_map = {}
     for oc in original_characters:
         cid = oc.get('CharacterID', 0)
@@ -351,7 +356,6 @@ def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
 
     _progress(15, "블록 데이터 매핑 중...")
 
-    # Build new JSON for each block
     char_block_counter = {}
     for bm in block_meta:
         cid = bm['char_id']
@@ -362,7 +366,6 @@ def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
         occurrence = char_block_counter[cid]
         char_block_counter[cid] += 1
 
-        # If this character wasn't changed, preserve original raw bytes
         if cid not in changed_char_ids:
             bm['new_obj'] = orig
             bm['modified'] = False
@@ -370,10 +373,6 @@ def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
 
         if cid in modified:
             mod = modified[cid]
-            has_mc_orig = bool(orig.get('MultiChat'))
-            has_he_orig = bool(orig.get('HudEdit'))
-            has_hg_orig = 'HudEditGroup' in orig
-
             all_mc, all_he, all_hg = [], [], []
             for key, val in mod.items():
                 if key.endswith('_MultiChat') or key == 'ChatTabs':
@@ -387,14 +386,12 @@ def encode_dat(characters, encode_ctx, output_path, progress_cb=None):
 
             new_obj = {"Version": orig.get("Version", 102)}
             if occurrence == 0:
-                # First block for this character: put ALL data here
                 if all_mc:
                     new_obj['MultiChat'] = all_mc
                 if all_he:
                     new_obj['HudEdit'] = all_he
                 if all_hg:
                     new_obj['HudEditGroup'] = all_hg
-            # Subsequent blocks for same char: leave as Version-only
 
             bm['new_obj'] = new_obj
             bm['modified'] = True

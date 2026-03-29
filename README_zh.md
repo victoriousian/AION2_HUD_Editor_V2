@@ -9,8 +9,6 @@
 一个独立的逆向工程工具，用于解码、预览和编辑 AION2 的 `DeviceSetting.dat` 文件。
 该工具绕过客户端本地 HUD 的限制，允许您在多个角色之间自由复制、备份和修改 HUD 布局与聊天选项卡设置。针对因客户端更新导致标头无法解析的情况，内置了分配虚拟 ID (Virtual ID) 的故障保护机制。
 
-*(在此处插入 10 秒的演示 GIF: 打开 .dat -> 选择角色 -> 复制布局 -> 保存)*
-
 ## 📥 快速下载
 不想从源代码编译？您可以直接下载预编译的独立可执行文件：
 👉 **[下载 AION2_HUD_Editor_V2.exe (v2.0)](https://github.com/victoriousian/AION2_HUD_Editor_V2/releases/tag/v2.0)**

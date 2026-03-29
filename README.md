@@ -9,8 +9,6 @@
 A standalone reverse-engineering tool to decode, preview, and edit the `DeviceSetting.dat` file for AION2. 
 This tool bypasses the client's localized HUD restrictions, allowing you to freely copy, backup, and modify HUD layouts and Chat Tab settings across multiple characters—including a fail-safe mechanism for virtual ID assignment on unparsed headers.
 
-*(Insert a 10-second GIF here demonstrating: Open .dat -> Select Character -> Copy Layout -> Save)*
-
 ## 📥 Quick Download
 Don't want to compile from source? Download the pre-compiled standalone executable directly:
 👉 **[Download AION2_HUD_Editor_V2.exe (v2.0)](https://github.com/victoriousian/AION2_HUD_Editor_V2/releases/tag/v2.0)**
